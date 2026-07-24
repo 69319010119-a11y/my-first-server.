@@ -1,36 +1,160 @@
-const http = require('http');
-// 1. เรียกใชงาน Pool จากไลบรารี pg สําหรับจัดการการเชื่อมตอฐานขอมูล
-const { Pool } = require('pg');
-// 2. ตั้งคาการเชื่อมตอ โดยดึง URL มาจาก Environment Variable ของ Railway
-const pool = new Pool({
-connectionString: process.env.DATABASE_URL,
-});
-const port = process.env.PORT || 3000;
-const server = http.createServer(async (req, res) => {
-res.statusCode = 200;
-res.setHeader('Content-Type', 'text/html; charset=utf-8');
+// ================================
+// นำเข้าโมดูลที่จำเป็น
+// ================================
 
-try {
-// 3. ขอเชื่อมตอและสงคําสั่ง SQL ไปดึงขอมูลจากตาราง students
-const client = await pool.connect();
-const result = await client.query('SELECT * FROM students');
-client.release(); // คนืการเชื่อมตอเมื่อใชงานเสร็จ
-// 4. นําขอมูลที่ได(result.rows) มาประกอบเปนตาราง HTML
-let html = `<h1>ฐานขอมูลนักศึกษา (ทดสอบการเชื่อมตอ)</h1>`;
-html += `<table border="1" cellpadding="10">`;
-html += `<tr><th>รหัสนักศึกษา</th><th>ชื่อ-นามสกุล</th></tr>`;
-// วนลูปนําขอมูลแตละแถวมาแสดง
-result.rows.forEach(row => {
-html += `<tr><td>${row.students_id}</td><td>${row.students_name}</td></tr>`;
+// โมดูลสำหรับสร้าง Web Server
+const http = require("http");
+
+// โมดูลสำหรับเชื่อมต่อ PostgreSQL
+const { Pool } = require("pg");
+
+
+// ================================
+// ตั้งค่าการเชื่อมต่อฐานข้อมูล
+// ================================
+const pool = new Pool({
+    // ดึง URL ของฐานข้อมูลจาก Environment Variable (Railway)
+    connectionString: process.env.DATABASE_URL,
 });
-html += `</table>`;
-res.end(html);
-} catch (err) {
-// กรณเีชื่อมตอไมไดหรือเขียนชื่อตารางผิด
-console.error(err);
-res.end(`<h1>เกิดขอผิดพลาด!</h1><p>${err.message}</p>`);
-}
+
+
+// ================================
+// กำหนด Port ของเซิร์ฟเวอร์
+// ================================
+const port = process.env.PORT || 3000;
+
+
+// ================================
+// สร้าง HTTP Server
+// ================================
+const server = http.createServer(async (req, res) => {
+
+    // กำหนดสถานะและชนิดข้อมูลที่ส่งกลับ
+    res.statusCode = 200;
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+
+    try {
+
+        // ================================
+        // เชื่อมต่อฐานข้อมูล
+        // ================================
+        const client = await pool.connect();
+
+        // ดึงข้อมูลทั้งหมดจากตาราง students
+        const result = await client.query(
+            "SELECT * FROM students"
+        );
+
+        // คืนการเชื่อมต่อกลับสู่ Pool
+        client.release();
+
+
+        // ================================
+        // สร้างหน้า HTML
+        // ================================
+        let html = `
+        <!DOCTYPE html>
+        <html lang="th">
+        <head>
+            <meta charset="UTF-8">
+            <title>ฐานข้อมูลนักศึกษา</title>
+
+            <style>
+                body{
+                    font-family: Arial, sans-serif;
+                    background:#f4f6f9;
+                    margin:40px;
+                }
+
+                h1{
+                    color:#0066cc;
+                    text-align:center;
+                }
+
+                table{
+                    width:70%;
+                    margin:auto;
+                    border-collapse:collapse;
+                    background:white;
+                    box-shadow:0 0 10px rgba(0,0,0,.15);
+                }
+
+                th{
+                    background:#0066cc;
+                    color:white;
+                    padding:12px;
+                }
+
+                td{
+                    padding:10px;
+                    text-align:center;
+                }
+
+                tr:nth-child(even){
+                    background:#f2f2f2;
+                }
+
+                tr:hover{
+                    background:#d9ecff;
+                }
+            </style>
+
+        </head>
+
+        <body>
+
+            <h1>📚 ฐานข้อมูลนักศึกษา</h1>
+
+            <table>
+                <tr>
+                    <th>รหัสนักศึกษา</th>
+                    <th>ชื่อ - นามสกุล</th>
+                </tr>
+        `;
+
+        // ================================
+        // แสดงข้อมูลนักศึกษา
+        // ================================
+        result.rows.forEach((row) => {
+            html += `
+                <tr>
+                    <td>${row.students_id}</td>
+                    <td>${row.students_name}</td>
+                </tr>
+            `;
+        });
+
+        html += `
+            </table>
+
+        </body>
+        </html>
+        `;
+
+        // ส่ง HTML กลับไปยัง Browser
+        res.end(html);
+
+    } catch (err) {
+
+        // ================================
+        // กรณีเกิดข้อผิดพลาด
+        // ================================
+        console.error(err);
+
+        res.end(`
+            <h1 style="color:red;">
+                ❌ เกิดข้อผิดพลาด
+            </h1>
+
+            <p>${err.message}</p>
+        `);
+    }
 });
+
+
+// ================================
+// เริ่มต้นการทำงานของ Server
+// ================================
 server.listen(port, () => {
-console.log(`Server is running on port: ${port}`);
+    console.log(`🚀 Server is running on port ${port}`);
 });
