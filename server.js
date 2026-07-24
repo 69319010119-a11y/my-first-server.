@@ -1,26 +1,36 @@
-5. // 1. เรียกใชงาน Module ที่ชื่อวา 'http' ซึ่งเปนระบบพื้นฐานของ Node.js สําหรับทําเซิรฟ เวอร
-6. const http = require('http');
-7.
-8. // 2. กําหนดชองทาง (Port) ที่เซิรฟเวอรจะใชสื่อสาร โดยใหใชของที่ Cloud กําหนดมา
-(process.env.PORT) ถาไมมีใหใช 3000
-9. const port = process.env.PORT || 3000;
-10.
-11. // 3. สรางเครื่องแมขาย (Server) ที่คอยรับคําขอ (req) และตอบกลับ (res)
-12. const server = http.createServer((req, res) => {
-13.
-14. // 3.1 ตั้งรหัสสถานะ 200 หมายถึง "ทํางานสําเร็จ (OK)"
-15. res.statusCode = 200;
-16.
-17. // 3.2 บอกเบราวเซอรของผูใชวา สิ่งที่สงกลับไปคือไฟลขอความแบบ HTML และรองรับ
-ภาษาไทย (utf-8)
-18. res.setHeader('Content-Type', 'text/html; charset=utf-8');
-19.
-20. // 3.3 สงขอมูลหนาเว็บกลับไปหาผูใช (*** ใหนักศึกษาแกชื่อ-นามสกุลตรงนี้ ***)
-21. res.end('<h1>สวัสดีค่ะ! นี่คือ Web Server ของ [นาวสาว กิรติกา แซ่จู 69319010119]
-</h1><p>เครื่องแมขายทํางานปกติบนระบบ Railway แลวครับผม!</p>');
-22. });
-23.
-24. // 4. สั่งใหเซิรฟเวอรเริ่มตนเปดรับฟงการเชื่อมตอตาม Port ที่กําหนดไว
-25. server.listen(port, () => {
-26. console.log(`Server is running! เคร่อืงแมขายเปดทํางานแลวที่ชองทาง: ${port}`);
-27. });
+const http = require('http');
+// 1. เรียกใชงาน Pool จากไลบรารี pg สําหรับจัดการการเชื่อมตอฐานขอมูล
+const { Pool } = require('pg');
+// 2. ตั้งคาการเชื่อมตอ โดยดึง URL มาจาก Environment Variable ของ Railway
+const pool = new Pool({
+connectionString: process.env.DATABASE_URL,
+});
+const port = process.env.PORT || 3000;
+const server = http.createServer(async (req, res) => {
+res.statusCode = 200;
+res.setHeader('Content-Type', 'text/html; charset=utf-8');
+
+try {
+// 3. ขอเชื่อมตอและสงคําสั่ง SQL ไปดึงขอมูลจากตาราง students
+const client = await pool.connect();
+const result = await client.query('SELECT * FROM students');
+client.release(); // คนืการเชื่อมตอเมื่อใชงานเสร็จ
+// 4. นําขอมูลที่ได(result.rows) มาประกอบเปนตาราง HTML
+let html = `<h1>ฐานขอมูลนักศึกษา (ทดสอบการเชื่อมตอ)</h1>`;
+html += `<table border="1" cellpadding="10">`;
+html += `<tr><th>รหัสนักศึกษา</th><th>ชื่อ-นามสกุล</th></tr>`;
+// วนลูปนําขอมูลแตละแถวมาแสดง
+result.rows.forEach(row => {
+html += `<tr><td>${row.student_id}</td><td>${row.student_name}</td></tr>`;
+});
+html += `</table>`;
+res.end(html);
+} catch (err) {
+// กรณเีชื่อมตอไมไดหรือเขียนชื่อตารางผิด
+console.error(err);
+res.end(`<h1>เกิดขอผิดพลาด!</h1><p>${err.message}</p>`);
+}
+});
+server.listen(port, () => {
+console.log(`Server is running on port: ${port}`);
+});
